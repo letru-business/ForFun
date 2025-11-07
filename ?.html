@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Baby‑Countdown GEO</title>
+  <style>
+  :root{ --bg1:#0b3d2e; --bg2:#145a40; --beige:#efe7db; --sand:#d9c9b3; --ink:#1c1b1a; --mut:#6c6256; }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));background-size:180% 180%;animation:grad 24s ease infinite;
+    display:grid;place-items:center;overflow:hidden}
+  .wrap{width:min(820px,94vw);padding:18px;position:relative}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.8));backdrop-filter:blur(8px);
+    border:1px solid var(--sand);border-radius:20px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:22px;position:relative;z-index:2}
+  h1{margin:0 0 6px;font-size:clamp(24px,4vw,36px);letter-spacing:.2px}
+  .mut{color:var(--mut);margin:0}
+  .header{display:flex;justify-content:space-between;gap:10px;align-items:end;flex-wrap:wrap}
+  .badge{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid var(--sand);font-size:12px;color:var(--mut);
+    background:linear-gradient(180deg,rgba(239,231,219,.6),rgba(217,201,179,.45))}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+  .tile{padding:14px 12px;text-align:center;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.8));
+    border:1px solid var(--sand);box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  .num{font-variant-numeric:tabular-nums;font-weight:700;font-size:clamp(26px,6vw,48px)}
+  .lab{color:var(--mut);font-size:12px;margin-top:3px}
+  .prog{height:8px;background:rgba(20,90,64,.18);border-radius:999px;overflow:hidden;margin:8px 0}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--bg2),var(--sand));transition:width .5s}
+  .controls{display:flex;justify-content:center;margin-top:14px}
+  .controls button{padding:12px 22px;border-radius:14px;border:1px solid var(--sand);
+    background:linear-gradient(180deg,var(--beige),#f5eede);cursor:pointer;font-weight:600;color:var(--ink);font-size:16px;display:flex;align-items:center;gap:8px}
+  .controls button span.icon{font-size:20px}
+  .section{margin-top:18px;padding:14px;border:1px dashed var(--sand);border-radius:14px;background:rgba(255,255,255,.6)}
+  .list{width:100%;border-collapse:collapse}
+  .list th,.list td{padding:8px;border-bottom:1px solid rgba(0,0,0,.05);text-align:left}
+  .kicker{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .confetti{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:1}
+  .confetti div{position:absolute;width:10px;height:10px;border-radius:50%;opacity:0.9;animation:fall 3s linear infinite}
+  @keyframes grad{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
+  @keyframes fall{0%{transform:translateY(-10px) rotate(0deg)}100%{transform:translateY(100vh) rotate(720deg)}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="confetti" id="confetti"></div>
+    <div class="card" role="group" aria-labelledby="t">
+      <div class="header">
+        <div>
+          <h1 id="t">🍼 Baby‑Countdown GEO</h1>
+          <p class="mut">Zieltermin: <b id="dueTxt">23. November</b> • <span class="mut">Sternzeichen:</span> <b id="sign">–</b></p>
+        </div>
+        <span class="badge" id="status">läuft…</span>
+      </div>
+
+      <div class="grid" aria-label="Countdown">
+        <div class="tile"><div class="num" id="d">0</div><div class="lab">Tage</div></div>
+        <div class="tile"><div class="num" id="h">00</div><div class="lab">Stunden</div></div>
+        <div class="tile"><div class="num" id="m">00</div><div class="lab">Minuten</div></div>
+        <div class="tile"><div class="num" id="s">00</div><div class="lab">Sekunden</div></div>
+      </div>
+
+      <div class="prog"><div class="bar" id="bar"></div></div>
+      <div class="controls">
+        <button id="arrived"><span class="icon">💚🎉</span> Er ist da</button>
+      </div>
+
+      <div class="section">
+        <div class="kicker"><strong>Geburtsdatum‑Tipps</strong><span class="mut">(wer hat welches Datum geschätzt?)</span></div>
+        <form id="guessForm" class="kicker" style="margin-top:8px">
+          <input id="gName" placeholder="Name" required>
+          <input id="gDate" type="date" required>
+          <button type="submit">Hinzufügen</button>
+        </form>
+        <table class="list" id="guessTable" aria-label="Tippliste">
+          <thead><tr><th>Name</th><th>Datum</th><th>Sternzeichen</th></tr></thead>
+          <tbody id="guessBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+// ========= Helpers =========
+const E=id=>document.getElementById(id),pad=n=>String(Math.floor(Math.max(0,n))).padStart(2,'0');
+const fmt=d=>new Intl.DateTimeFormat('de-DE',{dateStyle:'full'}).format(d);
+const els={d:E('d'),h:E('h'),m:E('m'),s:E('s'),bar:E('bar'),status:E('status'),sign:E('sign'),
+  arrived:E('arrived'),gForm:E('guessForm'),gName:E('gName'),gDate:E('gDate'),gBody:E('guessBody'),
+  conf:E('confetti')};
+
+// ========= Daily Facts =========
+const goodToKnow = [
+  "Babys erkennen die Stimme ihrer Mutter bereits im Bauch.",
+  "Der Name Georg ist in vielen Ländern als Heiligennamen verbreitet (St. Georg der Drachentöter).",
+  "Geo ist eine gängige, freundliche Kurzform von Georg.",
+  "Neugeborene schlafen im Schnitt 16–17 Stunden am Tag.",
+  "Das Gehör ist einer der frühesten Sinne, die sich beim Baby entwickeln.",
+  "Babys lächeln im Schlaf – das nennt man Reflexlächeln.",
+  "Georg war im Mittelalter in Europa besonders verbreitet.",
+  "Geo klingt modern und international – kurz, prägnant, einprägsam.",
+  "Neugeborene erkennen den Geruch ihrer Eltern schon sehr früh.",
+  "Babys werden mit mehr Knochen geboren als Erwachsene."
+];
+
+function zodiac(d){const m=d.getMonth()+1,day=d.getDate();
+  const cuts=[120,219,320,420,521,621,722,823,923,1023,1122,1221,1231];
+  const names=['Steinbock','Wassermann','Fische','Widder','Stier','Zwillinge','Krebs','Löwe','Jungfrau','Waage','Skorpion','Schütze','Steinbock'];
+  const num=m*100+day;let i=0;while(i<cuts.length&&num>cuts[i])i++;return names[i];}
+
+function load(){try{return JSON.parse(localStorage.getItem('babyCountdownGEO')||'{}')}catch{return{}}}
+function save(s){localStorage.setItem('babyCountdownGEO',JSON.stringify(s))}
+
+const state=load();
+// 🗓 Zieltermin auf 23. November
+const D=new Date(new Date().getFullYear(),10,23,0,0,0,0);
+const AFTER_DAYS=10; // Nachlauf-Fenster
+
+let arrival=state.arrival?new Date(state.arrival):null;
+let mode=(arrival||new Date()>D)?'after':'down', timer=null, start=new Date();
+const elsDueTxt = document.getElementById('dueTxt');
+if(elsDueTxt) elsDueTxt.textContent = D.toLocaleDateString('de-DE',{day:'2-digit',month:'long'});
+els.sign.textContent=zodiac(arrival||D);
+
+function show(td,th,tm,ts){ els.d.textContent=td; els.h.textContent=pad(th); els.m.textContent=pad(tm); els.s.textContent=pad(ts); }
+
+// ===== GOOD TO KNOW (täglich, bis Ablauf) =====
+function dailyIndexUTC(){
+  const now = new Date();
+  const daysUTC = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())/864e5);
+  return ((daysUTC % goodToKnow.length)+goodToKnow.length)%goodToKnow.length;
+}
+function inActiveWindow(){
+  const now=new Date();
+  if(mode==='down') return true; // bis zum Termin aktiv
+  const base=arrival||D; const since=now-base; return since < AFTER_DAYS*864e5; // Nachlauf aktiv
+}
+function renderGoodToKnow(){
+  const old = document.getElementById('gtkBox'); if(old) old.remove();
+  if(!inActiveWindow()) return; // nach Ablauf ausblenden
+  const box = document.createElement('div'); box.className='section'; box.id='gtkBox';
+  const fact = goodToKnow[dailyIndexUTC()];
+  box.innerHTML = `<strong>Good to know des Tages 🍼</strong><br>${fact}`;
+  const card = document.querySelector('.card');
+  const firstSection = card.querySelector('.section');
+  if(firstSection) card.insertBefore(box, firstSection); else card.appendChild(box);
+}
+function scheduleMidnightRefresh(){
+  const now = new Date(); const next = new Date(now); next.setHours(24,0,0,0);
+  setTimeout(()=>{ renderGoodToKnow(); scheduleMidnightRefresh(); }, next - now);
+}
+
+// ===== Countdown / Nachlauf =====
+function tick(){
+  const now=new Date();
+  if(mode==='down'){
+    const diff=D-now;
+    if(diff<=0){ mode='after'; els.bar.style.width='100%'; els.status.textContent='Termin erreicht'; renderGoodToKnow(); return; }
+    const s=Math.floor(diff/1e3)%60, m=Math.floor(diff/6e4)%60, h=Math.floor(diff/36e5)%24, d=Math.floor(diff/864e5);
+    show(d,h,m,s); els.status.textContent='läuft…';
+    els.bar.style.width=((now-start)/(D-start)*100).toFixed(2)+'%';
+  } else {
+    const base=arrival||D; const since=now-base; const limit=AFTER_DAYS*864e5;
+    if(since>=limit){ show(AFTER_DAYS,0,0,0); els.status.textContent=`Fenster (${AFTER_DAYS} Tage) beendet`; clearInterval(timer); renderGoodToKnow(); return; }
+    const s=Math.floor(since/1e3)%60, m=Math.floor(since/6e4)%60, h=Math.floor(since/36e5)%24, d=Math.floor(since/864e5);
+    show(d,h,m,s); els.status.textContent=`seit Termin: Tag ${d} von ${AFTER_DAYS}`;
+    els.bar.style.width=(since/limit*100).toFixed(2)+'%';
+  }
+}
+
+function makeConfetti(){
+  els.conf.innerHTML='';
+  for(let i=0;i<80;i++){
+    const c=document.createElement('div');
+    c.style.left=Math.random()*100+'%';
+    c.style.background=i%2? 'var(--beige)':'#9fd5c0';
+    c.style.animationDelay=(Math.random()*2)+'s';
+    c.style.width=c.style.height=8+Math.random()*6+'px';
+    els.conf.appendChild(c);
+  }
+  setTimeout(()=>els.conf.innerHTML='',6000);
+}
+
+// ===== Gewinner-Hervorhebung =====
+function highlightWinner(){
+  if(!arrival || !state.guesses || !state.guesses.length) return;
+  const diffDays = d => Math.abs((new Date(d) - arrival)/864e5);
+  const winner = state.guesses.reduce((a,b)=>diffDays(a.date)<diffDays(b.date)?a:b);
+  renderGuesses(winner); makeConfetti();
+}
+
+function row(name,date,isWinner=false){
+  const tr=document.createElement('tr'); const d=new Date(date);
+  tr.innerHTML=`<td>${name}</td><td>${fmt(d)}</td><td>${zodiac(d)}</td>`;
+  if(isWinner){ tr.style.background='gold'; tr.style.fontWeight='bold'; }
+  return tr;
+}
+function renderGuesses(winner=null){
+  els.gBody.innerHTML='';
+  (state.guesses||[]).forEach(g=>{
+    const isWin = !!(winner && g.name===winner.name && g.date===winner.date);
+    els.gBody.appendChild(row(g.name,g.date,isWin));
+  });
+}
+
+renderGuesses();
+
+els.arrived.addEventListener('click',()=>{
+  if(arrival){
+    if(confirm('Ankunft zurücksetzen?')){
+      arrival=null; state.arrival=null; mode='down';
+      els.status.textContent='Countdown läuft wieder'; els.conf.innerHTML='';
+      save(state); renderGuesses(); renderGoodToKnow();
+    }
+  } else {
+    arrival=new Date(); state.arrival=arrival.toISOString(); mode='after';
+    els.status.textContent='Er ist da! 💚🎉'; makeConfetti(); save(state);
+    highlightWinner(); renderGoodToKnow();
+  }
+});
+
+els.gForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  const name=(els.gName.value||'').trim();
+  const gd=new Date(els.gDate.value);
+  if(!name||isNaN(gd))return;
+  state.guesses=state.guesses||[]; state.guesses.push({name,date:gd.toISOString()});
+  save(state); els.gName.value=''; els.gDate.value=''; renderGuesses();
+});
+
+// ===== Timer (kein doppeltes let) & Initial-Render =====
+timer = setInterval(tick,1000);
+tick();
+renderGoodToKnow();
+scheduleMidnightRefresh();
+
+// ===== Selbsttests (Konsole) =====
+(function runSelfTests(){
+  try{
+    console.assert(typeof timer==='number' || typeof timer==='object', 'Timer sollte gesetzt sein');
+    console.assert(document.getElementById('gtkBox'), 'Facts-Box sollte gerendert werden');
+  }catch(e){ console.warn('SelfTests Hinweis:', e); }
+})();
+  </script>
+</body>
+</html>
