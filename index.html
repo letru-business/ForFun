@@ -10,7 +10,7 @@
   body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);
     background:linear-gradient(135deg,var(--bg1),var(--bg2));background-size:180% 180%;animation:grad 24s ease infinite;
     display:grid;place-items:center;overflow:hidden}
-  .wrap{width:min(820px,94vw);padding:18px;position:relative}
+  .wrap{width:min(900px,94vw);padding:18px;position:relative}
   .card{background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.8));backdrop-filter:blur(8px);
     border:1px solid var(--sand);border-radius:20px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:22px;position:relative;z-index:2}
   h1{margin:0 0 6px;font-size:clamp(24px,4vw,36px);letter-spacing:.2px}
@@ -25,7 +25,7 @@
   .lab{color:var(--mut);font-size:12px;margin-top:3px}
   .prog{height:8px;background:rgba(20,90,64,.18);border-radius:999px;overflow:hidden;margin:8px 0}
   .bar{height:100%;width:0;background:linear-gradient(90deg,var(--bg2),var(--sand));transition:width .5s}
-  .controls{display:flex;justify-content:center;margin-top:14px}
+  .controls{display:flex;justify-content:center;gap:10px;margin-top:14px;flex-wrap:wrap}
   .controls button{padding:12px 22px;border-radius:14px;border:1px solid var(--sand);
     background:linear-gradient(180deg,var(--beige),#f5eede);cursor:pointer;font-weight:600;color:var(--ink);font-size:16px;display:flex;align-items:center;gap:8px}
   .controls button span.icon{font-size:20px}
@@ -33,6 +33,9 @@
   .list{width:100%;border-collapse:collapse}
   .list th,.list td{padding:8px;border-bottom:1px solid rgba(0,0,0,.05);text-align:left}
   .kicker{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row-actions{display:flex;gap:8px}
+  .btn-link{background:none;border:none;color:#0b5ed7;cursor:pointer;padding:0}
+  .btn-link.danger{color:#b00020}
   .confetti{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:1}
   .confetti div{position:absolute;width:10px;height:10px;border-radius:50%;opacity:0.9;animation:fall 3s linear infinite}
   @keyframes grad{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
@@ -59,8 +62,17 @@
       </div>
 
       <div class="prog"><div class="bar" id="bar"></div></div>
+
       <div class="controls">
-        <button id="arrived"><span class="icon">💚🎉</span> Er ist da</button>
+        <button id="arrived"><span class="icon">💚🎉</span> Er ist da (heute)</button>
+        <button id="setDate"><span class="icon">🗓️</span> Datum nachtragen</button>
+        <button id="reset" style="display:none"><span class="icon">↩︎</span> Countdown zurücksetzen</button>
+      </div>
+
+      <div id="setDatePanel" class="kicker" style="display:none; justify-content:center; margin-top:8px">
+        <input id="arriveInput" type="date">
+        <button id="saveArrival" type="button">Speichern</button>
+        <button id="cancelArrival" type="button">Abbrechen</button>
       </div>
 
       <div class="section">
@@ -68,10 +80,12 @@
         <form id="guessForm" class="kicker" style="margin-top:8px">
           <input id="gName" placeholder="Name" required>
           <input id="gDate" type="date" required>
-          <button type="submit">Hinzufügen</button>
+          <input id="gId" type="hidden">
+          <button type="submit" id="saveBtn">Hinzufügen</button>
+          <button type="button" id="cancelEdit" style="display:none">Abbrechen</button>
         </form>
         <table class="list" id="guessTable" aria-label="Tippliste">
-          <thead><tr><th>Name</th><th>Datum</th><th>Sternzeichen</th></tr></thead>
+          <thead><tr><th>Name</th><th>Datum</th><th>Sternzeichen</th><th>Aktionen</th></tr></thead>
           <tbody id="guessBody"></tbody>
         </table>
       </div>
@@ -82,9 +96,12 @@
 // ========= Helpers =========
 const E=id=>document.getElementById(id),pad=n=>String(Math.floor(Math.max(0,n))).padStart(2,'0');
 const fmt=d=>new Intl.DateTimeFormat('de-DE',{dateStyle:'full'}).format(d);
+const ymd=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,'0')+"-"+String(x.getDate()).padStart(2,'0')};
 const els={d:E('d'),h:E('h'),m:E('m'),s:E('s'),bar:E('bar'),status:E('status'),sign:E('sign'),
-  arrived:E('arrived'),gForm:E('guessForm'),gName:E('gName'),gDate:E('gDate'),gBody:E('guessBody'),
-  conf:E('confetti')};
+  arrived:E('arrived'),setDate:E('setDate'),reset:E('reset'),arriveInput:E('arriveInput'),
+  saveArrival:E('saveArrival'),cancelArrival:E('cancelArrival'),setDatePanel:E('setDatePanel'),
+  gForm:E('guessForm'),gName:E('gName'),gDate:E('gDate'),gBody:E('guessBody'),gId:E('gId'),
+  saveBtn:E('saveBtn'),cancelEdit:E('cancelEdit'),conf:E('confetti')};
 
 // ========= Daily Facts =========
 const goodToKnow = [
@@ -98,6 +115,19 @@ const goodToKnow = [
   "Geo klingt modern und international – kurz, prägnant, einprägsam.",
   "Neugeborene erkennen den Geruch ihrer Eltern schon sehr früh.",
   "Babys werden mit mehr Knochen geboren als Erwachsene."
+  "Im Griechischen bedeutet das Präfix geo- „Erde“ (von „gē“ = Erde)."
+  "In der Autoindustrie war Geo eine US-Marke von Chevrolet für kompakte Fahrzeuge in den 1990ern."
+  "In der Psychologie wird der Name Georg oft mit Beständigkeit und Struktur assoziiert – jemand, der „den Boden hält“."
+  "Der Geruchssinn schwangerer Personen wird oft stärker – eine evolutionäre Schutzfunktion."
+  "Viele Schwangere haben intensivere Träume – durch hormonelle Veränderungen."
+  "Das Hormon Relaxin sorgt dafür, dass Bänder und Gelenke weicher werden – der Körper bereitet sich auf die Geburt vor."
+  "Das astrologische Wort „geozentrisch“ (erdzentriert) hat dieselbe Wurzel wie der Name Geo."
+  "Während der Schwangerschaft steigt das Blutvolumen im Körper um etwa 40–50 %."
+  "Die Plazenta (Mutterkuchen) versorgt das Baby mit Sauerstoff und Nährstoffen – sie ist das einzige „neue Organ“, das der Körper bildet."
+  "Schwangere haben oft lebendigere Emotionen durch erhöhte Oxytocin- und Progesteronspiegel."
+  "Das Hormon Progesteron sorgt für ruhige Muskeln – das ist gut für die Gebärmutter, aber kann auch Verdauungsprobleme verursachen."
+  "Das Gehirn verändert sich nachweislich in der Schwangerschaft – besonders Bereiche für Empathie, Fürsorge und Wahrnehmung."
+  "Studien zeigen: Babys, deren Eltern in der Schwangerschaft viel lachen, reagieren nach der Geburt ruhiger auf Stress." 
 ];
 
 function zodiac(d){const m=d.getMonth()+1,day=d.getDate();
@@ -120,6 +150,10 @@ if(elsDueTxt) elsDueTxt.textContent = D.toLocaleDateString('de-DE',{day:'2-digit
 els.sign.textContent=zodiac(arrival||D);
 
 function show(td,th,tm,ts){ els.d.textContent=td; els.h.textContent=pad(th); els.m.textContent=pad(tm); els.s.textContent=pad(ts); }
+
+// Timer helpers
+function stopTimer(){ if(timer){ clearInterval(timer); timer=null; } }
+function startTimer(){ if(!timer){ start=new Date(); timer=setInterval(tick,1000); } }
 
 // ===== GOOD TO KNOW (täglich, bis Ablauf) =====
 function dailyIndexUTC(){
@@ -147,21 +181,32 @@ function scheduleMidnightRefresh(){
   setTimeout(()=>{ renderGoodToKnow(); scheduleMidnightRefresh(); }, next - now);
 }
 
+// ===== Migration: fehlende IDs für alte Tipps nachrüsten =====
+(function ensureIds(){
+  state.guesses = state.guesses || [];
+  let changed=false;
+  state.guesses.forEach(g=>{ if(!g.id){ g.id=String(Date.now())+Math.random().toString(16).slice(2); changed=true; } });
+  if(changed) save(state);
+})();
+
 // ===== Countdown / Nachlauf =====
 function tick(){
   const now=new Date();
   if(mode==='down'){
     const diff=D-now;
-    if(diff<=0){ mode='after'; els.bar.style.width='100%'; els.status.textContent='Termin erreicht'; renderGoodToKnow(); return; }
+    if(diff<=0){ mode='after'; els.bar.style.width='100%'; els.status.textContent='Termin erreicht'; return; }
     const s=Math.floor(diff/1e3)%60, m=Math.floor(diff/6e4)%60, h=Math.floor(diff/36e5)%24, d=Math.floor(diff/864e5);
     show(d,h,m,s); els.status.textContent='läuft…';
     els.bar.style.width=((now-start)/(D-start)*100).toFixed(2)+'%';
   } else {
-    const base=arrival||D; const since=now-base; const limit=AFTER_DAYS*864e5;
-    if(since>=limit){ show(AFTER_DAYS,0,0,0); els.status.textContent=`Fenster (${AFTER_DAYS} Tage) beendet`; clearInterval(timer); renderGoodToKnow(); return; }
-    const s=Math.floor(since/1e3)%60, m=Math.floor(since/6e4)%60, h=Math.floor(since/36e5)%24, d=Math.floor(since/864e5);
-    show(d,h,m,s); els.status.textContent=`seit Termin: Tag ${d} von ${AFTER_DAYS}`;
-    els.bar.style.width=(since/limit*100).toFixed(2)+'%';
+    if(!arrival){
+      // Über Termin, noch keine Ankunft -> weiterlaufen lassen
+      const since=now-D; const s=Math.floor(since/1e3)%60, m=Math.floor(since/6e4)%60, h=Math.floor(since/36e5)%24, d=Math.floor(since/864e5);
+      show(d,h,m,s); els.status.textContent=`über Termin: Tag ${d}`; els.bar.style.width='100%';
+    } else {
+      // Ankunft gesetzt -> einfrieren
+      show(0,0,0,0); els.status.textContent='Er ist da! 💚🎉'; stopTimer();
+    }
   }
 }
 
@@ -178,42 +223,84 @@ function makeConfetti(){
   setTimeout(()=>els.conf.innerHTML='',6000);
 }
 
-// ===== Gewinner-Hervorhebung =====
-function highlightWinner(){
-  if(!arrival || !state.guesses || !state.guesses.length) return;
-  const diffDays = d => Math.abs((new Date(d) - arrival)/864e5);
-  const winner = state.guesses.reduce((a,b)=>diffDays(a.date)<diffDays(b.date)?a:b);
-  renderGuesses(winner); makeConfetti();
+// ===== Gewinnerlogik: nur EXAKTE Treffer =====
+function exactWinners(){
+  if(!arrival || !state.guesses || !state.guesses.length) return [];
+  const target = ymd(arrival);
+  return state.guesses.filter(g=> ymd(g.date) === target);
 }
 
-function row(name,date,isWinner=false){
-  const tr=document.createElement('tr'); const d=new Date(date);
-  tr.innerHTML=`<td>${name}</td><td>${fmt(d)}</td><td>${zodiac(d)}</td>`;
+// ===== Tabelle =====
+function row(g,isWinner=false){
+  const d=new Date(g.date);
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${g.name}</td><td>${fmt(d)}</td><td>${zodiac(d)}</td>
+    <td class="row-actions">
+      <button class="btn-link" data-edit="${g.id}">Bearbeiten</button>
+      <button class="btn-link danger" data-del="${g.id}">Löschen</button>
+    </td>`;
   if(isWinner){ tr.style.background='gold'; tr.style.fontWeight='bold'; }
   return tr;
 }
-function renderGuesses(winner=null){
+
+function renderGuesses(){
   els.gBody.innerHTML='';
+  const winners = exactWinners().map(w=>w.id);
   (state.guesses||[]).forEach(g=>{
-    const isWin = !!(winner && g.name===winner.name && g.date===winner.date);
-    els.gBody.appendChild(row(g.name,g.date,isWin));
+    els.gBody.appendChild(row(g, winners.includes(g.id)));
   });
 }
 
-renderGuesses();
+function startEdit(g){
+  els.gId.value=g.id; els.gName.value=g.name; els.gDate.value=ymd(g.date);
+  els.saveBtn.textContent='Speichern'; els.cancelEdit.style.display='inline-block';
+}
+function endEdit(){
+  els.gId.value=''; els.gName.value=''; els.gDate.value='';
+  els.saveBtn.textContent='Hinzufügen'; els.cancelEdit.style.display='none';
+}
 
+// ===== Events: Ankunft heute / nachtragen / reset =====
 els.arrived.addEventListener('click',()=>{
-  if(arrival){
-    if(confirm('Ankunft zurücksetzen?')){
-      arrival=null; state.arrival=null; mode='down';
-      els.status.textContent='Countdown läuft wieder'; els.conf.innerHTML='';
-      save(state); renderGuesses(); renderGoodToKnow();
-    }
-  } else {
-    arrival=new Date(); state.arrival=arrival.toISOString(); mode='after';
-    els.status.textContent='Er ist da! 💚🎉'; makeConfetti(); save(state);
-    highlightWinner(); renderGoodToKnow();
+  arrival=new Date(); arrival.setHours(12,0,0,0);
+  state.arrival=arrival.toISOString(); mode='after'; save(state);
+  els.status.textContent='Er ist da! 💚🎉'; makeConfetti();
+  renderGuesses(); renderGoodToKnow();
+  show(0,0,0,0); stopTimer(); els.reset.style.display='inline-block';
+});
+
+els.setDate.addEventListener('click',()=>{
+  els.setDatePanel.style.display='flex';
+  els.arriveInput.value = ymd(arrival||new Date());
+});
+
+els.saveArrival.addEventListener('click',()=>{
+  const dStr=els.arriveInput.value; const gd=new Date(dStr);
+  if(isNaN(gd)) return;
+  gd.setHours(12,0,0,0);
+  arrival=gd; state.arrival=arrival.toISOString(); mode='after'; save(state);
+  els.status.textContent='Er ist da! (nachgetragen) 💚🎉'; makeConfetti();
+  els.setDatePanel.style.display='none';
+  renderGuesses(); renderGoodToKnow();
+  show(0,0,0,0); stopTimer(); els.reset.style.display='inline-block';
+});
+
+els.cancelArrival.addEventListener('click',()=>{ els.setDatePanel.style.display='none'; });
+
+els.reset.addEventListener('click',()=>{
+  if(confirm('Ankunft zurücksetzen und Countdown fortsetzen?')){
+    arrival=null; state.arrival=null; mode='down'; save(state);
+    els.status.textContent='Countdown läuft wieder'; els.reset.style.display='none';
+    renderGuesses(); renderGoodToKnow(); startTimer(); tick();
   }
+});
+
+// Delegation für Edit/Delete Buttons (robust)
+els.gBody.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const editId=t.getAttribute('data-edit'); const delId=t.getAttribute('data-del');
+  if(editId){ const g=(state.guesses||[]).find(x=>x.id===editId); if(g) startEdit(g); return; }
+  if(delId){ const idx=(state.guesses||[]).findIndex(x=>x.id===delId); if(idx>-1 && confirm('Diesen Tipp löschen?')){ state.guesses.splice(idx,1); save(state); renderGuesses(); } }
 });
 
 els.gForm.addEventListener('submit',e=>{
@@ -221,23 +308,26 @@ els.gForm.addEventListener('submit',e=>{
   const name=(els.gName.value||'').trim();
   const gd=new Date(els.gDate.value);
   if(!name||isNaN(gd))return;
-  state.guesses=state.guesses||[]; state.guesses.push({name,date:gd.toISOString()});
-  save(state); els.gName.value=''; els.gDate.value=''; renderGuesses();
+  state.guesses=state.guesses||[];
+  const id = els.gId.value;
+  if(id){ const idx = state.guesses.findIndex(x=>x.id===id); if(idx>-1){ state.guesses[idx].name=name; state.guesses[idx].date=gd.toISOString(); } }
+  else{ state.guesses.push({id:String(Date.now())+Math.random().toString(16).slice(2), name, date:gd.toISOString()}); }
+  save(state); renderGuesses(); endEdit();
 });
 
-// ===== Timer (kein doppeltes let) & Initial-Render =====
-timer = setInterval(tick,1000);
+// ===== Init =====
+renderGuesses(); renderGoodToKnow(); scheduleMidnightRefresh();
+// Startet jetzt auch dann, wenn Termin vorbei ist aber arrival noch fehlt
+if(mode==='down' || (mode==='after' && !arrival)){ startTimer(); }
+// Erste Anzeige sofort zeichnen
 tick();
-renderGoodToKnow();
-scheduleMidnightRefresh();
 
 // ===== Selbsttests (Konsole) =====
-(function runSelfTests(){
-  try{
-    console.assert(typeof timer==='number' || typeof timer==='object', 'Timer sollte gesetzt sein');
-    console.assert(document.getElementById('gtkBox'), 'Facts-Box sollte gerendert werden');
-  }catch(e){ console.warn('SelfTests Hinweis:', e); }
-})();
-  </script>
+(function(){ try{
+  console.assert(Array.isArray(state.guesses), 'guesses Array vorhanden');
+  console.assert((mode==='down' && !!timer) || (mode==='after'), 'Timer/Modus plausibel');
+} catch(e){ console.warn('SelfTests Hinweis:', e); } })();
+</script>
 </body>
 </html>
+
